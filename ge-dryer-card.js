@@ -16,7 +16,7 @@ class GeDryerCard extends HTMLElement {
     this._config = {
       prefix: config.prefix.replace(/\/$/, ''),
       name: config.name || 'GE Dryer',
-      sheets: config.sheets !== false,
+      sheets: config.sheets !== false && config.sheets !== 'false',
     };
   }
 
@@ -267,10 +267,10 @@ class GeDryerCard extends HTMLElement {
 
         /* Door handle */
         .door-handle {
-          position: absolute; top: 50%; right: -14px; transform: translateY(-50%);
+          position: absolute; top: 50%; left: -14px; transform: translateY(-50%);
           width: 10px; height: 50px; border-radius: 5px;
-          background: linear-gradient(90deg, #666 0%, #444 50%, #555 100%);
-          box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+          background: linear-gradient(90deg, #555 0%, #444 50%, #666 100%);
+          box-shadow: -2px 2px 4px rgba(0,0,0,0.4);
         }
 
         /* Door/vent status icons */
@@ -383,7 +383,7 @@ class GeDryerCard extends HTMLElement {
                 <span class="sensor-value">${sheetInventory != null && sheetInventory !== '0' ? sheetInventory : '--'}</span>
               </div>` : `<div class="sensor-item">
                 <span class="sensor-label">WasherLink</span>
-                <span class="sensor-value ${washerLink ? 'highlight' : ''}">${washerLink ? 'Linked' : 'Off'}</span>
+                <span class="sensor-value" style="${washerLink ? 'color: #4caf50;' : ''}">${washerLink ? 'Linked' : 'Off'}</span>
               </div>`}
               <div class="sensor-item">
                 <span class="sensor-label">Eco Dry</span>
