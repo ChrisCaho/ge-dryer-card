@@ -5,7 +5,9 @@
 
 A custom Lovelace card for GE Profile dryers connected via the [SmartHQ integration](https://github.com/simbaja/ha_gehome).
 
-![GE Dryer Card](https://raw.githubusercontent.com/ChrisCaho/ge-dryer-card/main/screenshot.png)
+![GE Dryer Card — Timed Dry](ge-dryer-card-timed-dry.jpg)
+
+![GE Dryer Card — Off](ge-dryer-card-off.jpg)
 
 > **Looking for all GE appliance cards in one package?** Check out [GE Appliances Card](https://github.com/ChrisCaho/ge-appliances-card) — a bundle containing washer, dryer, and oven cards.
 
