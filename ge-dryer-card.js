@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.4.0';
+const GE_DRYER_CARD_VERSION = '1.5.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -16,6 +16,7 @@ class GeDryerCard extends HTMLElement {
     this._config = {
       prefix: config.prefix.replace(/\/$/, ''),
       name: config.name || 'GE Dryer',
+      sheets: config.sheets !== false,
     };
   }
 
@@ -87,6 +88,7 @@ class GeDryerCard extends HTMLElement {
     // Binary sensors
     const doorOpen = this._getBinary('door') === 'on';
     const ventBlocked = this._getBinary('dryer_blocked_vent_fault') === 'on';
+    const washerLink = this._getBinary('dryer_washerlink_status') === 'on';
 
     const isActive = machineState.toLowerCase() !== 'off';
     const isDelay = delayRemaining && parseFloat(delayRemaining) > 0;
@@ -376,10 +378,13 @@ class GeDryerCard extends HTMLElement {
                 <span class="sensor-label">Dryness</span>
                 <span class="sensor-value">${drynessLevel}</span>
               </div>
-              <div class="sensor-item">
+              ${this._config.sheets ? `<div class="sensor-item">
                 <span class="sensor-label">Sheets</span>
                 <span class="sensor-value">${sheetInventory != null && sheetInventory !== '0' ? sheetInventory : '--'}</span>
-              </div>
+              </div>` : `<div class="sensor-item">
+                <span class="sensor-label">WasherLink</span>
+                <span class="sensor-value ${washerLink ? 'highlight' : ''}">${washerLink ? 'Linked' : 'Off'}</span>
+              </div>`}
               <div class="sensor-item">
                 <span class="sensor-label">Eco Dry</span>
                 <span class="sensor-value ${ecoDry.toLowerCase() !== 'disabled' ? 'highlight' : ''}">${ecoDry.toLowerCase() !== 'disabled' ? 'On' : 'Off'}</span>
