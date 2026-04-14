@@ -97,9 +97,27 @@ sheets: false
 
 ## Entity Requirements
 
-The card discovers all required entities automatically using the `prefix` value. Your SmartHQ integration must have the dryer connected and its entities available.
+### How Entity Discovery Works
 
-### Sensors (auto-discovered from prefix)
+The card only needs one config value — the `prefix`. It automatically discovers all other entities by appending suffixes to the prefix. **No manual sensor configuration is required.** If a derived entity does not exist, the corresponding field gracefully shows "--" or hides.
+
+The card reads from two HA entity domains using one config value:
+
+- **`sensor.*`** — all cycle, timer, temperature, and feature sensors (prefix + suffix)
+- **`binary_sensor.*`** — door, vent fault, and WasherLink states (prefix with `sensor.` swapped to `binary_sensor.` + suffix)
+
+The naming rule: the `prefix` is the portion of the entity ID that is shared by all related entities, up to but not including the first feature-specific suffix. The card appends an underscore and the suffix to build each full entity ID.
+
+**Example:** Given `prefix: sensor.hasvr1_ge_dryer_laundry`, the card builds:
+
+| Domain | Suffix | Full Entity ID | Used For |
+|--------|--------|----------------|----------|
+| `sensor.` | `_machine_state` | `sensor.hasvr1_ge_dryer_laundry_machine_state` | Machine state (Off, Running, etc.) |
+| `sensor.` | `_cycle` | `sensor.hasvr1_ge_dryer_laundry_cycle` | Active cycle name |
+| `binary_sensor.` | `_door` | `binary_sensor.hasvr1_ge_dryer_laundry_door` | Door open icon near drum |
+| `binary_sensor.` | `_dryer_blocked_vent_fault` | `binary_sensor.hasvr1_ge_dryer_laundry_dryer_blocked_vent_fault` | Vent warning banner |
+
+### Sensors (prefix + suffix)
 
 | Suffix                                    | Description                           |
 |-------------------------------------------|---------------------------------------|
@@ -118,15 +136,15 @@ The card discovers all required entities automatically using the `prefix` value.
 
 **Note on tumble_status naming:** SmartHQ uses inconsistent entity naming for some dryer models. The card automatically checks both `ge_dryer_laundry` and `ge_dryerlaundry` variants for the `dryer_tumble_status` entity and uses whichever one exists.
 
-### Binary Sensors (auto-discovered from prefix)
+### Binary Sensors (prefix with domain swap + suffix)
+
+The binary sensor entity ID is formed by replacing `sensor.` with `binary_sensor.` in the prefix, then appending the suffix.
 
 | Suffix                      | Description                                                        |
 |-----------------------------|--------------------------------------------------------------------|
 | `_door`                     | Door open indicator — shown as an icon near the drum               |
 | `_dryer_blocked_vent_fault` | Blocked vent fault — triggers the pulsing red warning banner       |
 | `_dryer_washerlink_status`  | WasherLink connection — shown in the grid cell when `sheets: false`|
-
-The card automatically converts the sensor prefix to `binary_sensor.` when looking up binary sensor entities.
 
 ---
 
