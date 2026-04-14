@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.3.0';
+const GE_DRYER_CARD_VERSION = '1.4.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -39,6 +39,13 @@ class GeDryerCard extends HTMLElement {
     return alt ? alt.state : null;
   }
 
+  _getBinary(suffix) {
+    if (!this._hass) return null;
+    const binaryId = this._config.prefix.replace('sensor.', 'binary_sensor.') + '_' + suffix;
+    const entity = this._hass.states[binaryId];
+    return entity ? entity.state : null;
+  }
+
   _tempColor(tempLevel) {
     const map = {
       'no heat':    { color: '#4488bb', glow: 'rgba(68,136,187,0.4)' },
@@ -76,6 +83,10 @@ class GeDryerCard extends HTMLElement {
     const sheetInventory = this._getState('dryer_sheet_inventory');
     const sheetConfig = this._getState('dryer_sheet_usage_configuration') || '--';
     const tumbleStatus = this._getState('dryer_tumble_status') || '--';
+
+    // Binary sensors
+    const doorOpen = this._getBinary('door') === 'on';
+    const ventBlocked = this._getBinary('dryer_blocked_vent_fault') === 'on';
 
     const isActive = machineState.toLowerCase() !== 'off';
     const isDelay = delayRemaining && parseFloat(delayRemaining) > 0;
@@ -260,6 +271,30 @@ class GeDryerCard extends HTMLElement {
           box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
         }
 
+        /* Door/vent status icons */
+        .door-icons {
+          position: absolute; bottom: 12px; right: 12px;
+          display: flex; gap: 6px; z-index: 5;
+        }
+        .door-icon {
+          font-size: 14px; opacity: 0.4;
+        }
+        .door-icon.open { opacity: 1; color: #ffaa33; }
+
+        /* Vent warning */
+        .vent-warning {
+          display: flex; align-items: center; gap: 6px;
+          background: rgba(255, 50, 50, 0.15); border: 1px solid rgba(255, 50, 50, 0.3);
+          border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
+          font-size: 12px; color: #ff6644;
+        }
+        .vent-warning-icon { font-size: 16px; }
+        @keyframes ventPulse {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+        .vent-warning { animation: ventPulse 2s ease-in-out infinite; }
+
         /* Sensor grid */
         .sensor-grid {
           display: grid; grid-template-columns: 1fr 1fr 1fr;
@@ -305,6 +340,7 @@ class GeDryerCard extends HTMLElement {
             </div>
           </div>
 
+          ${ventBlocked ? '<div class="vent-warning"><span class="vent-warning-icon">⚠️</span> Blocked Vent Detected</div>' : ''}
           <div class="machine-body">
             <div class="drum-container">
               <div class="door-ring"></div>
@@ -326,6 +362,9 @@ class GeDryerCard extends HTMLElement {
                 </div>
               </div>
               <div class="door-handle"></div>
+              <div class="door-icons">
+                ${doorOpen ? '<span class="door-icon open" title="Door Open">🚪</span>' : ''}
+              </div>
             </div>
 
             <div class="sensor-grid">
