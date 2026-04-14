@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.0.0';
+const GE_DRYER_CARD_VERSION = '1.1.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -45,10 +45,10 @@ class GeDryerCard extends HTMLElement {
       'air fluff':  { color: '#4488bb', glow: 'rgba(68,136,187,0.4)' },
       'extra low':  { color: '#55aacc', glow: 'rgba(85,170,204,0.4)' },
       'low':        { color: '#66bbaa', glow: 'rgba(102,187,170,0.4)' },
-      'medium low': { color: '#99aa44', glow: 'rgba(153,170,68,0.4)' },
-      'medium':     { color: '#ccaa22', glow: 'rgba(204,170,34,0.4)' },
-      'high':       { color: '#dd7722', glow: 'rgba(221,119,34,0.4)' },
-      'extra high': { color: '#cc3311', glow: 'rgba(204,51,17,0.4)' },
+      'medium low': { color: '#cc9922', glow: 'rgba(204,153,34,0.5)' },
+      'medium':     { color: '#ee8811', glow: 'rgba(238,136,17,0.5)' },
+      'high':       { color: '#ff6600', glow: 'rgba(255,102,0,0.6)' },
+      'extra high': { color: '#ff3300', glow: 'rgba(255,51,0,0.6)' },
     };
     return map[(tempLevel || '').toLowerCase()] || { color: '#555', glow: 'rgba(85,85,85,0.2)' };
   }
@@ -78,6 +78,7 @@ class GeDryerCard extends HTMLElement {
     const tumbleStatus = this._getState('dryer_tumble_status') || '--';
 
     const isActive = machineState.toLowerCase() !== 'off';
+    const isDelay = delayRemaining && parseFloat(delayRemaining) > 0;
     const isSteam = cycle.toLowerCase().includes('steam') || subCycle.toLowerCase().includes('steam');
     const tc = this._tempColor(tempOption);
     const name = this._config.name;
@@ -175,37 +176,32 @@ class GeDryerCard extends HTMLElement {
           box-shadow: inset 0 0 40px ${tc.glow}, inset 0 4px 16px rgba(0,0,0,0.4);
         }
 
-        /* Drum with lifter bars */
+        /* Drum with wall-mounted lifter bars */
         .drum-inner {
           position: absolute; top: 16px; left: 16px; right: 16px; bottom: 16px;
           border-radius: 50%;
-          border: 1px solid rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.08);
           animation: ${drumAnim};
         }
+        /* Lifter bars attached to drum wall (short fins on the inside perimeter) */
         .lifter {
-          position: absolute; top: 50%; left: 50%;
-          width: 6px; height: 38%;
-          background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
+          position: absolute;
+          width: 18px; height: 6px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 100%);
           border-radius: 3px;
-          transform-origin: center top;
         }
         .lifter.active {
-          background: linear-gradient(180deg, ${tc.color}44 0%, ${tc.color}18 100%);
+          background: linear-gradient(90deg, ${tc.color}55 0%, ${tc.color}22 100%);
         }
-        .lifter:nth-child(1) { transform: translate(-50%, 0) rotate(0deg); }
-        .lifter:nth-child(2) { transform: translate(-50%, 0) rotate(90deg); }
-        .lifter:nth-child(3) { transform: translate(-50%, 0) rotate(180deg); }
-        .lifter:nth-child(4) { transform: translate(-50%, 0) rotate(270deg); }
+        /* Position each lifter on the inner drum wall */
+        .lifter:nth-child(1) { top: 4px; left: 50%; transform: translateX(-50%); width: 22px; }
+        .lifter:nth-child(2) { bottom: 4px; left: 50%; transform: translateX(-50%); width: 22px; }
+        .lifter:nth-child(3) { top: 50%; left: 4px; transform: translateY(-50%); width: 18px; height: 6px; }
+        .lifter:nth-child(4) { top: 50%; right: 4px; left: auto; transform: translateY(-50%); width: 18px; height: 6px; }
 
         .perf-ring {
-          position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px;
+          position: absolute; top: 14px; left: 14px; right: 14px; bottom: 14px;
           border-radius: 50%; border: 1px dashed rgba(255,255,255,0.06);
-        }
-        .hub {
-          position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-          width: 20px; height: 20px; border-radius: 50%;
-          background: radial-gradient(circle, #444 0%, #222 100%);
-          border: 1px solid #555;
         }
 
         @keyframes drumSpin {
@@ -313,8 +309,8 @@ class GeDryerCard extends HTMLElement {
           <div class="lcd-bezel">
             <div class="lcd-screen ${isActive ? 'active' : ''}">
               <div class="lcd-row main">
-                <span class="lcd-cycle ${isActive ? '' : 'off'}">${isActive ? cycle : 'OFF'}</span>
-                ${isActive && timeRemaining ? `<span class="lcd-time">${this._formatTime(timeRemaining)}</span>` : ''}
+                <span class="lcd-cycle ${isActive ? '' : 'off'}">${isDelay ? 'DELAY' : (isActive ? cycle : 'OFF')}</span>
+                ${isDelay ? `<span class="lcd-time">${this._formatTime(delayRemaining)}</span>` : (isActive && timeRemaining ? `<span class="lcd-time">${this._formatTime(timeRemaining)}</span>` : '')}
               </div>
               <div class="lcd-row">
                 <span class="lcd-sub ${isActive ? '' : 'off'}">${isActive ? (subCycle !== '---' ? subCycle : machineState) : machineState}</span>
@@ -341,7 +337,6 @@ class GeDryerCard extends HTMLElement {
                   <div class="lifter ${isActive ? 'active' : ''}"></div>
                   <div class="lifter ${isActive ? 'active' : ''}"></div>
                   <div class="lifter ${isActive ? 'active' : ''}"></div>
-                  <div class="hub"></div>
                 </div>
               </div>
               <div class="door-handle"></div>
