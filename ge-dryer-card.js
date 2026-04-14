@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.2.0';
+const GE_DRYER_CARD_VERSION = '1.3.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -276,23 +276,6 @@ class GeDryerCard extends HTMLElement {
         .sensor-value { font-size: 11px; font-weight: 500; color: #e0e0e0; }
         .sensor-value.highlight { color: ${tc.color}; }
 
-        /* Option icons row */
-        .options-row {
-          display: flex; gap: 8px; justify-content: center;
-          margin-top: 8px; width: 100%;
-        }
-        .option-badge {
-          font-size: 9px; padding: 3px 8px; border-radius: 10px;
-          text-transform: uppercase; letter-spacing: 0.5px;
-        }
-        .option-badge.on {
-          background: rgba(76,175,80,0.2); color: #66cc77;
-          border: 1px solid rgba(76,175,80,0.3);
-        }
-        .option-badge.off {
-          background: rgba(255,255,255,0.04); color: #666;
-        }
-
         /* Footer */
         .footer {
           margin-top: 4px; padding: 4px 4px 0;
@@ -358,13 +341,18 @@ class GeDryerCard extends HTMLElement {
                 <span class="sensor-label">Sheets</span>
                 <span class="sensor-value">${sheetInventory != null && sheetInventory !== '0' ? sheetInventory : '--'}</span>
               </div>
-            </div>
-
-            <div class="options-row">
-              <span class="option-badge ${ecoDry.toLowerCase() !== 'disabled' ? 'on' : 'off'}">Eco Dry</span>
-              <span class="option-badge ${extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled' ? 'on' : 'off'}">Ext. Tumble</span>
-              <span class="option-badge ${tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled' ? 'on' : 'off'}">Tumble</span>
-              ${isSteam ? '<span class="option-badge on">Steam</span>' : ''}
+              <div class="sensor-item">
+                <span class="sensor-label">Eco Dry</span>
+                <span class="sensor-value ${ecoDry.toLowerCase() !== 'disabled' ? 'highlight' : ''}">${ecoDry.toLowerCase() !== 'disabled' ? 'On' : 'Off'}</span>
+              </div>
+              <div class="sensor-item">
+                <span class="sensor-label">Ext Tumble</span>
+                <span class="sensor-value ${extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled' ? 'highlight' : ''}">${extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled' ? 'On' : 'Off'}</span>
+              </div>
+              <div class="sensor-item">
+                <span class="sensor-label">${isSteam ? 'Steam' : 'Tumble'}</span>
+                <span class="sensor-value ${isSteam ? 'highlight' : (tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled' ? 'highlight' : '')}">${isSteam ? 'On' : (tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled' ? 'On' : 'Off')}</span>
+              </div>
             </div>
           </div>
 
