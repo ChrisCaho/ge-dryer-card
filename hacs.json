@@ -1,6 +1,5 @@
 {
   "name": "GE Dryer Card",
   "render_readme": true,
-  "filename": "ge-dryer-card.js",
-  "version": "1.5.0"
+  "filename": "ge-dryer-card.js"
 }
