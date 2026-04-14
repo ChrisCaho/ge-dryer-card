@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.5.0';
+const GE_DRYER_CARD_VERSION = '1.6.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -272,16 +272,10 @@ class GeDryerCard extends HTMLElement {
           background: linear-gradient(90deg, #555 0%, #444 50%, #666 100%);
           box-shadow: -2px 2px 4px rgba(0,0,0,0.4);
         }
-
-        /* Door/vent status icons */
-        .door-icons {
-          position: absolute; bottom: 12px; right: 12px;
-          display: flex; gap: 6px; z-index: 5;
+        .door-handle.open {
+          background: linear-gradient(90deg, #ff9933 0%, #cc7722 50%, #ff9933 100%);
+          box-shadow: -2px 2px 4px rgba(0,0,0,0.4), 0 0 8px rgba(255, 153, 51, 0.4);
         }
-        .door-icon {
-          font-size: 14px; opacity: 0.4;
-        }
-        .door-icon.open { opacity: 1; color: #ffaa33; }
 
         /* Vent warning */
         .vent-warning {
@@ -363,10 +357,7 @@ class GeDryerCard extends HTMLElement {
                   <div class="lifter ${isActive ? 'active' : ''}"></div>
                 </div>
               </div>
-              <div class="door-handle"></div>
-              <div class="door-icons">
-                ${doorOpen ? '<span class="door-icon open" title="Door Open">🚪</span>' : ''}
-              </div>
+              <div class="door-handle ${doorOpen ? 'open' : ''}"></div>
             </div>
 
             <div class="sensor-grid">
