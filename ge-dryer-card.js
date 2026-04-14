@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.1.0';
+const GE_DRYER_CARD_VERSION = '1.2.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -183,24 +183,27 @@ class GeDryerCard extends HTMLElement {
           border: 1px solid rgba(255,255,255,0.08);
           animation: ${drumAnim};
         }
-        /* Lifter bars attached to drum wall (short fins on the inside perimeter) */
+        /* Lifter bars — short radial fins mounted on the drum wall */
         .lifter {
           position: absolute;
-          width: 18px; height: 6px;
-          background: linear-gradient(90deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 100%);
+          top: 50%; left: 50%;
+          width: 6px; height: 20px;
+          margin-left: -3px;
+          margin-top: -74px; /* near the drum wall (radius ~76px, 2px gap) */
+          transform-origin: 3px 74px; /* rotate around drum center */
+          background: linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.06) 100%);
           border-radius: 3px;
         }
         .lifter.active {
-          background: linear-gradient(90deg, ${tc.color}55 0%, ${tc.color}22 100%);
+          background: linear-gradient(180deg, ${tc.color}55 0%, ${tc.color}22 100%);
         }
-        /* Position each lifter on the inner drum wall */
-        .lifter:nth-child(1) { top: 4px; left: 50%; transform: translateX(-50%); width: 22px; }
-        .lifter:nth-child(2) { bottom: 4px; left: 50%; transform: translateX(-50%); width: 22px; }
-        .lifter:nth-child(3) { top: 50%; left: 4px; transform: translateY(-50%); width: 18px; height: 6px; }
-        .lifter:nth-child(4) { top: 50%; right: 4px; left: auto; transform: translateY(-50%); width: 18px; height: 6px; }
+        .lifter:nth-child(1) { transform: rotate(0deg); }
+        .lifter:nth-child(2) { transform: rotate(90deg); }
+        .lifter:nth-child(3) { transform: rotate(180deg); }
+        .lifter:nth-child(4) { transform: rotate(270deg); }
 
         .perf-ring {
-          position: absolute; top: 14px; left: 14px; right: 14px; bottom: 14px;
+          position: absolute; top: 16px; left: 16px; right: 16px; bottom: 16px;
           border-radius: 50%; border: 1px dashed rgba(255,255,255,0.06);
         }
 
