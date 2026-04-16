@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.6.0';
+const GE_DRYER_CARD_VERSION = '1.6.1';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -7,6 +7,7 @@ class GeDryerCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = null;
+    this._rendered = false;
   }
 
   setConfig(config) {
@@ -18,11 +19,12 @@ class GeDryerCard extends HTMLElement {
       name: config.name || 'GE Dryer',
       sheets: config.sheets !== false && config.sheets !== 'false',
     };
+    this._rendered = false; // force full re-render on config change
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    this._update();
   }
 
   getCardSize() { return 7; }
@@ -69,9 +71,8 @@ class GeDryerCard extends HTMLElement {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
-  _render() {
-    if (!this._hass || !this._config) return;
-
+  // Gather all display values from current state
+  _getDisplayData() {
     const machineState = this._getState('machine_state') || 'Off';
     const cycle = this._getState('cycle') || '--';
     const subCycle = this._getState('sub_cycle') || '---';
@@ -82,7 +83,6 @@ class GeDryerCard extends HTMLElement {
     const ecoDry = this._getState('dryer_ecodry_option_selection') || '--';
     const extTumble = this._getState('dryer_extended_tumble_option_selection') || '--';
     const sheetInventory = this._getState('dryer_sheet_inventory');
-    const sheetConfig = this._getState('dryer_sheet_usage_configuration') || '--';
     const tumbleStatus = this._getState('dryer_tumble_status') || '--';
 
     // Binary sensors
@@ -94,11 +94,44 @@ class GeDryerCard extends HTMLElement {
     const isDelay = delayRemaining && parseFloat(delayRemaining) > 0;
     const isSteam = cycle.toLowerCase().includes('steam') || subCycle.toLowerCase().includes('steam');
     const tc = this._tempColor(tempOption);
-    const name = this._config.name;
 
-    // Drum spins when active
-    const drumAnim = isActive ? 'drumSpin 4s linear infinite' : 'none';
+    // LCD values
+    const lcdCycle = isDelay ? 'DELAY' : (isActive ? cycle : 'OFF');
+    let lcdTime = '';
+    if (isDelay) {
+      lcdTime = this._formatTime(delayRemaining);
+    } else if (isActive && timeRemaining) {
+      lcdTime = this._formatTime(timeRemaining);
+    }
+    const lcdSub = isActive ? (subCycle !== '---' ? subCycle : machineState) : machineState;
 
+    // Sensor values
+    const ecoDryOn = ecoDry.toLowerCase() !== 'disabled';
+    const extTumbleOn = extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled';
+    const tumbleOn = tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled';
+
+    let sheetsOrLinkLabel, sheetsOrLinkValue, sheetsOrLinkHighlight;
+    if (this._config.sheets) {
+      sheetsOrLinkLabel = 'Sheets';
+      sheetsOrLinkValue = sheetInventory != null && sheetInventory !== '0' ? sheetInventory : '--';
+      sheetsOrLinkHighlight = false;
+    } else {
+      sheetsOrLinkLabel = 'WasherLink';
+      sheetsOrLinkValue = washerLink ? 'Linked' : 'Off';
+      sheetsOrLinkHighlight = washerLink;
+    }
+
+    return {
+      isActive, isDelay, isSteam, tc, doorOpen, ventBlocked,
+      lcdCycle, lcdTime, lcdSub, tempOption,
+      drynessLevel,
+      ecoDryOn, extTumbleOn, tumbleOn, isSteamLabel: isSteam,
+      sheetsOrLinkLabel, sheetsOrLinkValue, sheetsOrLinkHighlight,
+    };
+  }
+
+  // Build initial DOM structure (only once)
+  _buildDom() {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; }
@@ -184,17 +217,16 @@ class GeDryerCard extends HTMLElement {
           box-shadow: inset 0 4px 16px rgba(0,0,0,0.6);
           overflow: hidden;
         }
-        .door-glass.active {
-          background: radial-gradient(circle at 40% 40%, ${tc.color}22 0%, ${tc.color}11 40%, #0d0d10 100%);
-          box-shadow: inset 0 0 40px ${tc.glow}, inset 0 4px 16px rgba(0,0,0,0.4);
-        }
+        /* door-glass active state applied via inline style for dynamic color */
 
         /* Drum with wall-mounted lifter bars */
         .drum-inner {
           position: absolute; top: 16px; left: 16px; right: 16px; bottom: 16px;
           border-radius: 50%;
           border: 1px solid rgba(255,255,255,0.08);
-          animation: ${drumAnim};
+        }
+        .drum-inner.spinning {
+          animation: drumSpin 4s linear infinite;
         }
         /* Lifter bars — short radial fins mounted on the drum wall */
         .lifter {
@@ -202,15 +234,12 @@ class GeDryerCard extends HTMLElement {
           top: 50%; left: 50%;
           width: 6px; height: 20px;
           margin-left: -3px;
-          margin-top: -74px; /* near the drum wall (radius ~76px, 2px gap) */
-          transform-origin: 3px 74px; /* rotate around drum center */
+          margin-top: -74px;
+          transform-origin: 3px 74px;
           background: linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.06) 100%);
           border-radius: 3px;
         }
-        .lifter.active {
-          background: linear-gradient(180deg, ${tc.color}55 0%, ${tc.color}22 100%);
-        }
-        .lifter:nth-child(1) { transform: rotate(0deg); }
+        /* lifter active state applied via inline style for dynamic color */
         .lifter:nth-child(2) { transform: rotate(90deg); }
         .lifter:nth-child(3) { transform: rotate(180deg); }
         .lifter:nth-child(4) { transform: rotate(270deg); }
@@ -232,8 +261,6 @@ class GeDryerCard extends HTMLElement {
         }
         .glow-ring.active {
           display: block;
-          border-color: ${tc.color}66;
-          box-shadow: 0 0 15px ${tc.glow}, inset 0 0 15px ${tc.glow};
           animation: glowPulse 3s ease-in-out infinite;
         }
         @keyframes glowPulse {
@@ -244,9 +271,10 @@ class GeDryerCard extends HTMLElement {
         /* Steam effect */
         .steam-container {
           position: absolute; top: 15%; left: 30%; width: 40%; height: 50%;
-          display: ${isSteam && isActive ? 'block' : 'none'};
+          display: none;
           pointer-events: none;
         }
+        .steam-container.visible { display: block; }
         .steam-wisp {
           position: absolute; bottom: 0; width: 3px;
           background: linear-gradient(to top, transparent, rgba(200,220,255,0.3), transparent);
@@ -279,17 +307,18 @@ class GeDryerCard extends HTMLElement {
 
         /* Vent warning */
         .vent-warning {
-          display: flex; align-items: center; gap: 6px;
+          display: none; align-items: center; gap: 6px;
           background: rgba(255, 50, 50, 0.15); border: 1px solid rgba(255, 50, 50, 0.3);
           border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
           font-size: 12px; color: #ff6644;
+          animation: ventPulse 2s ease-in-out infinite;
         }
+        .vent-warning.visible { display: flex; }
         .vent-warning-icon { font-size: 16px; }
         @keyframes ventPulse {
           0%, 100% { opacity: 0.7; }
           50% { opacity: 1; }
         }
-        .vent-warning { animation: ventPulse 2s ease-in-out infinite; }
 
         /* Sensor grid */
         .sensor-grid {
@@ -305,7 +334,7 @@ class GeDryerCard extends HTMLElement {
           color: #999; margin-bottom: 1px;
         }
         .sensor-value { font-size: 11px; font-weight: 500; color: #e0e0e0; }
-        .sensor-value.highlight { color: ${tc.color}; }
+        .sensor-value.highlight { color: var(--dryer-tc-color, #555); }
 
         /* Footer */
         .footer {
@@ -320,84 +349,217 @@ class GeDryerCard extends HTMLElement {
         <div class="body">
           <div class="top-bar">
             <span class="brand">GE Profile</span>
-            <span class="name">${name}</span>
+            <span class="name" data-field="name"></span>
           </div>
 
           <div class="lcd-bezel">
-            <div class="lcd-screen ${isActive ? 'active' : ''}">
+            <div class="lcd-screen" data-field="lcdScreen">
               <div class="lcd-row main">
-                <span class="lcd-cycle ${isActive ? '' : 'off'}">${isDelay ? 'DELAY' : (isActive ? cycle : 'OFF')}</span>
-                ${isDelay ? `<span class="lcd-time">${this._formatTime(delayRemaining)}</span>` : (isActive && timeRemaining ? `<span class="lcd-time">${this._formatTime(timeRemaining)}</span>` : '')}
+                <span class="lcd-cycle" data-field="lcdCycle"></span>
+                <span class="lcd-time" data-field="lcdTime"></span>
               </div>
               <div class="lcd-row">
-                <span class="lcd-sub ${isActive ? '' : 'off'}">${isActive ? (subCycle !== '---' ? subCycle : machineState) : machineState}</span>
-                ${isActive ? `<span class="lcd-state">${tempOption}</span>` : ''}
+                <span class="lcd-sub" data-field="lcdSub"></span>
+                <span class="lcd-state" data-field="lcdState"></span>
               </div>
             </div>
           </div>
 
-          ${ventBlocked ? '<div class="vent-warning"><span class="vent-warning-icon">⚠️</span> Blocked Vent Detected</div>' : ''}
+          <div class="vent-warning" data-field="ventWarning">
+            <span class="vent-warning-icon">\u26a0\ufe0f</span> Blocked Vent Detected
+          </div>
+
           <div class="machine-body">
             <div class="drum-container">
               <div class="door-ring"></div>
-              <div class="glow-ring ${isActive ? 'active' : ''}"></div>
-              <div class="door-glass ${isActive ? 'active' : ''}">
-                <div class="steam-container">
+              <div class="glow-ring" data-field="glowRing"></div>
+              <div class="door-glass" data-field="doorGlass">
+                <div class="steam-container" data-field="steamContainer">
                   <div class="steam-wisp"></div>
                   <div class="steam-wisp"></div>
                   <div class="steam-wisp"></div>
                   <div class="steam-wisp"></div>
                   <div class="steam-wisp"></div>
                 </div>
-                <div class="drum-inner">
+                <div class="drum-inner" data-field="drumInner">
                   <div class="perf-ring"></div>
-                  <div class="lifter ${isActive ? 'active' : ''}"></div>
-                  <div class="lifter ${isActive ? 'active' : ''}"></div>
-                  <div class="lifter ${isActive ? 'active' : ''}"></div>
-                  <div class="lifter ${isActive ? 'active' : ''}"></div>
+                  <div class="lifter" data-field="lifter0"></div>
+                  <div class="lifter" data-field="lifter1"></div>
+                  <div class="lifter" data-field="lifter2"></div>
+                  <div class="lifter" data-field="lifter3"></div>
                 </div>
               </div>
-              <div class="door-handle ${doorOpen ? 'open' : ''}"></div>
+              <div class="door-handle" data-field="doorHandle"></div>
             </div>
 
             <div class="sensor-grid">
               <div class="sensor-item">
                 <span class="sensor-label">Heat</span>
-                <span class="sensor-value ${isActive ? 'highlight' : ''}">${tempOption}</span>
+                <span class="sensor-value" data-field="sensorHeat"></span>
               </div>
               <div class="sensor-item">
                 <span class="sensor-label">Dryness</span>
-                <span class="sensor-value">${drynessLevel}</span>
+                <span class="sensor-value" data-field="sensorDryness"></span>
               </div>
-              ${this._config.sheets ? `<div class="sensor-item">
-                <span class="sensor-label">Sheets</span>
-                <span class="sensor-value">${sheetInventory != null && sheetInventory !== '0' ? sheetInventory : '--'}</span>
-              </div>` : `<div class="sensor-item">
-                <span class="sensor-label">WasherLink</span>
-                <span class="sensor-value" style="${washerLink ? 'color: #4caf50;' : ''}">${washerLink ? 'Linked' : 'Off'}</span>
-              </div>`}
+              <div class="sensor-item">
+                <span class="sensor-label" data-field="sensorThirdLabel"></span>
+                <span class="sensor-value" data-field="sensorThirdValue"></span>
+              </div>
               <div class="sensor-item">
                 <span class="sensor-label">Eco Dry</span>
-                <span class="sensor-value ${ecoDry.toLowerCase() !== 'disabled' ? 'highlight' : ''}">${ecoDry.toLowerCase() !== 'disabled' ? 'On' : 'Off'}</span>
+                <span class="sensor-value" data-field="sensorEcoDry"></span>
               </div>
               <div class="sensor-item">
                 <span class="sensor-label">Ext Tumble</span>
-                <span class="sensor-value ${extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled' ? 'highlight' : ''}">${extTumble.toLowerCase() !== 'disable' && extTumble.toLowerCase() !== 'disabled' ? 'On' : 'Off'}</span>
+                <span class="sensor-value" data-field="sensorExtTumble"></span>
               </div>
               <div class="sensor-item">
-                <span class="sensor-label">${isSteam ? 'Steam' : 'Tumble'}</span>
-                <span class="sensor-value ${isSteam ? 'highlight' : (tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled' ? 'highlight' : '')}">${isSteam ? 'On' : (tumbleStatus.toLowerCase() !== 'disable' && tumbleStatus.toLowerCase() !== 'disabled' ? 'On' : 'Off')}</span>
+                <span class="sensor-label" data-field="sensorSixthLabel"></span>
+                <span class="sensor-value" data-field="sensorSixthValue"></span>
               </div>
             </div>
           </div>
 
           <div class="footer">
-            <span class="entity-id">${this._config.prefix}</span>
+            <span class="entity-id" data-field="footerEntity"></span>
             <span class="entity-id">v${GE_DRYER_CARD_VERSION}</span>
           </div>
         </div>
       </ha-card>
     `;
+    this._rendered = true;
+  }
+
+  // Get a data-field element
+  _el(field) {
+    return this.shadowRoot?.querySelector(`[data-field="${field}"]`);
+  }
+
+  // Update DOM in-place without replacing innerHTML (preserves animations)
+  _update() {
+    if (!this._hass || !this._config) return;
+
+    const data = this._getDisplayData();
+
+    // Build DOM on first render
+    if (!this._rendered) {
+      this._buildDom();
+    }
+
+    // Set the dynamic color as a CSS custom property on the host
+    const card = this.shadowRoot.querySelector('ha-card');
+    if (card) {
+      card.style.setProperty('--dryer-tc-color', data.tc.color);
+    }
+
+    // Top bar
+    this._el('name').textContent = this._config.name;
+
+    // LCD screen
+    const lcdScreen = this._el('lcdScreen');
+    lcdScreen.className = `lcd-screen ${data.isActive ? 'active' : ''}`;
+
+    const lcdCycle = this._el('lcdCycle');
+    lcdCycle.textContent = data.lcdCycle;
+    lcdCycle.className = `lcd-cycle ${data.isActive ? '' : 'off'}`;
+
+    const lcdTime = this._el('lcdTime');
+    lcdTime.textContent = data.lcdTime;
+    lcdTime.style.display = data.lcdTime ? '' : 'none';
+
+    const lcdSub = this._el('lcdSub');
+    lcdSub.textContent = data.lcdSub;
+    lcdSub.className = `lcd-sub ${data.isActive ? '' : 'off'}`;
+
+    const lcdState = this._el('lcdState');
+    lcdState.textContent = data.isActive ? data.tempOption : '';
+    lcdState.style.display = data.isActive ? '' : 'none';
+
+    // Vent warning
+    this._el('ventWarning').className = `vent-warning ${data.ventBlocked ? 'visible' : ''}`;
+
+    // Glow ring — dynamic color via inline style
+    const glowRing = this._el('glowRing');
+    if (data.isActive) {
+      glowRing.className = 'glow-ring active';
+      glowRing.style.borderColor = `${data.tc.color}66`;
+      glowRing.style.boxShadow = `0 0 15px ${data.tc.glow}, inset 0 0 15px ${data.tc.glow}`;
+    } else {
+      glowRing.className = 'glow-ring';
+      glowRing.style.borderColor = '';
+      glowRing.style.boxShadow = '';
+    }
+
+    // Door glass — dynamic background for active state
+    const doorGlass = this._el('doorGlass');
+    if (data.isActive) {
+      doorGlass.style.background = `radial-gradient(circle at 40% 40%, ${data.tc.color}22 0%, ${data.tc.color}11 40%, #0d0d10 100%)`;
+      doorGlass.style.boxShadow = `inset 0 0 40px ${data.tc.glow}, inset 0 4px 16px rgba(0,0,0,0.4)`;
+    } else {
+      doorGlass.style.background = '';
+      doorGlass.style.boxShadow = '';
+    }
+
+    // Drum spin animation — toggle class instead of rebuilding
+    const drumInner = this._el('drumInner');
+    if (data.isActive) {
+      if (!drumInner.classList.contains('spinning')) drumInner.classList.add('spinning');
+    } else {
+      drumInner.classList.remove('spinning');
+    }
+
+    // Lifter bars — dynamic color via inline style
+    for (let i = 0; i < 4; i++) {
+      const lifter = this._el(`lifter${i}`);
+      if (data.isActive) {
+        lifter.style.background = `linear-gradient(180deg, ${data.tc.color}55 0%, ${data.tc.color}22 100%)`;
+      } else {
+        lifter.style.background = '';
+      }
+    }
+
+    // Steam container
+    this._el('steamContainer').className = `steam-container ${(data.isSteam && data.isActive) ? 'visible' : ''}`;
+
+    // Door handle
+    this._el('doorHandle').className = `door-handle ${data.doorOpen ? 'open' : ''}`;
+
+    // Sensor grid
+    const sensorHeat = this._el('sensorHeat');
+    sensorHeat.textContent = data.tempOption;
+    sensorHeat.className = `sensor-value ${data.isActive ? 'highlight' : ''}`;
+
+    this._el('sensorDryness').textContent = data.drynessLevel;
+
+    // Third sensor (sheets or washerlink)
+    this._el('sensorThirdLabel').textContent = data.sheetsOrLinkLabel;
+    const sensorThirdValue = this._el('sensorThirdValue');
+    sensorThirdValue.textContent = data.sheetsOrLinkValue;
+    if (data.sheetsOrLinkHighlight) {
+      sensorThirdValue.style.color = '#4caf50';
+      sensorThirdValue.className = 'sensor-value';
+    } else {
+      sensorThirdValue.style.color = '';
+      sensorThirdValue.className = 'sensor-value';
+    }
+
+    const sensorEcoDry = this._el('sensorEcoDry');
+    sensorEcoDry.textContent = data.ecoDryOn ? 'On' : 'Off';
+    sensorEcoDry.className = `sensor-value ${data.ecoDryOn ? 'highlight' : ''}`;
+
+    const sensorExtTumble = this._el('sensorExtTumble');
+    sensorExtTumble.textContent = data.extTumbleOn ? 'On' : 'Off';
+    sensorExtTumble.className = `sensor-value ${data.extTumbleOn ? 'highlight' : ''}`;
+
+    // Sixth sensor (steam or tumble)
+    this._el('sensorSixthLabel').textContent = data.isSteamLabel ? 'Steam' : 'Tumble';
+    const sensorSixthValue = this._el('sensorSixthValue');
+    const sixthOn = data.isSteamLabel ? true : data.tumbleOn;
+    sensorSixthValue.textContent = sixthOn ? 'On' : 'Off';
+    sensorSixthValue.className = `sensor-value ${sixthOn ? 'highlight' : ''}`;
+
+    // Footer
+    this._el('footerEntity').textContent = this._config.prefix;
   }
 }
 
