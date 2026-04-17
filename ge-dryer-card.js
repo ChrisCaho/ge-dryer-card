@@ -1,4 +1,4 @@
-const GE_DRYER_CARD_VERSION = '1.6.1';
+const GE_DRYER_CARD_VERSION = '1.7.0';
 console.log(`GE Dryer Card v${GE_DRYER_CARD_VERSION}: loading...`);
 
 class GeDryerCard extends HTMLElement {
@@ -90,7 +90,9 @@ class GeDryerCard extends HTMLElement {
     const ventBlocked = this._getBinary('dryer_blocked_vent_fault') === 'on';
     const washerLink = this._getBinary('dryer_washerlink_status') === 'on';
 
-    const isActive = machineState.toLowerCase() !== 'off';
+    const msLower = machineState.toLowerCase();
+    const isActive = !['off', 'unavailable', 'unknown'].includes(msLower);
+    const isDone = msLower.includes('end') || msLower.includes('complete');
     const isDelay = delayRemaining && parseFloat(delayRemaining) > 0;
     const isSteam = cycle.toLowerCase().includes('steam') || subCycle.toLowerCase().includes('steam');
     const tc = this._tempColor(tempOption);
@@ -122,7 +124,7 @@ class GeDryerCard extends HTMLElement {
     }
 
     return {
-      isActive, isDelay, isSteam, tc, doorOpen, ventBlocked,
+      isActive, isDone, isDelay, isSteam, tc, doorOpen, ventBlocked,
       lcdCycle, lcdTime, lcdSub, tempOption,
       drynessLevel,
       ecoDryOn, extTumbleOn, tumbleOn, isSteamLabel: isSteam,
@@ -336,6 +338,15 @@ class GeDryerCard extends HTMLElement {
         .sensor-value { font-size: 11px; font-weight: 500; color: #e0e0e0; }
         .sensor-value.highlight { color: var(--dryer-tc-color, #555); }
 
+        /* DONE badge */
+        .lcd-done {
+          font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700;
+          color: #4caf50; text-shadow: 0 0 8px rgba(76,175,80,0.6);
+          letter-spacing: 2px; display: none;
+        }
+        .lcd-done.visible { display: inline; animation: donePulse 2s ease-in-out infinite; }
+        @keyframes donePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
         /* Footer */
         .footer {
           margin-top: 4px; padding: 4px 4px 0;
@@ -343,6 +354,21 @@ class GeDryerCard extends HTMLElement {
           display: flex; justify-content: space-between; align-items: center;
         }
         .entity-id { font-size: 9px; color: #444; font-family: monospace; }
+
+        /* Responsive drum for narrow viewports */
+        @media (max-width: 360px) {
+          .drum-container { width: min(200px, 55vw); height: min(200px, 55vw); }
+        }
+
+        /* Accessibility: reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          .drum-inner.spinning, .glow-ring.active, .steam-wisp,
+          .vent-warning, .lcd-done.visible {
+            animation: none !important;
+          }
+          .drum-inner.spinning { transform: rotate(45deg); }
+          .glow-ring.active { opacity: 0.8; }
+        }
       </style>
 
       <ha-card>
@@ -360,7 +386,10 @@ class GeDryerCard extends HTMLElement {
               </div>
               <div class="lcd-row">
                 <span class="lcd-sub" data-field="lcdSub"></span>
-                <span class="lcd-state" data-field="lcdState"></span>
+                <span>
+                  <span class="lcd-done" data-field="lcdDone">DONE</span>
+                  <span class="lcd-state" data-field="lcdState"></span>
+                </span>
               </div>
             </div>
           </div>
@@ -439,12 +468,12 @@ class GeDryerCard extends HTMLElement {
   _update() {
     if (!this._hass || !this._config) return;
 
-    const data = this._getDisplayData();
-
     // Build DOM on first render
     if (!this._rendered) {
       this._buildDom();
     }
+
+    const data = this._getDisplayData();
 
     // Set the dynamic color as a CSS custom property on the host
     const card = this.shadowRoot.querySelector('ha-card');
@@ -474,6 +503,9 @@ class GeDryerCard extends HTMLElement {
     const lcdState = this._el('lcdState');
     lcdState.textContent = data.isActive ? data.tempOption : '';
     lcdState.style.display = data.isActive ? '' : 'none';
+
+    // DONE badge
+    this._el('lcdDone').className = `lcd-done ${data.isDone ? 'visible' : ''}`;
 
     // Vent warning
     this._el('ventWarning').className = `vent-warning ${data.ventBlocked ? 'visible' : ''}`;
